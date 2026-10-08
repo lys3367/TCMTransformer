@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "teprediction"
+version = "0.2.0"
+license = {file = "LICENSE"}
+description = "ROI-level multi-TE metric prediction and paper analyses"
+requires-python = ">=3.9,<3.13"
+dependencies = ["numpy==1.26.4", "pandas==2.2.3", "scipy==1.13.1", "torch==2.5.1", "matplotlib==3.9.4", "einops==0.8.1"]
+
+[project.scripts]
+teprediction = "teprediction.__main__:main"
+
+[tool.setuptools]
+packages = ["teprediction"]
+
+[tool.setuptools.package-data]
+teprediction = ["vendor/**/*"]

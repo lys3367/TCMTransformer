@@ -1,118 +1,126 @@
-# TCMTransformer
+# ROI-level multi-TE prediction
 
-Research code for target-TE prediction of diffusion MRI microstructural metrics.
-The canonical experiment compares **iTransformer, TimesNet, MoLE and DLinear** on
-49 participants, seven echo times and 296 BN/JHU ROIs. The repository name does not
-identify a newly implemented Transformer architecture: these are the four existing
-baseline models used in the study.
+This repository starts from **already fitted and aggregated ROI-level multi-TE metric tables**.
+It reproduces TE prediction and the study's numerical extension analyses; it is not a raw-dMRI
+preprocessing, fitting or atlas-registration pipeline. The repository name TCMTransformer does
+not imply a new model architecture. The four study models are iTransformer, TimesNet, MoLE and DLinear.
 
-## Scope and reproducibility
+## Install and run an entirely synthetic example
 
-- Main task: TE 75/85/95/105/115 ms → TE 125/135 ms; 38 metrics × 296 ROIs = 11,248 variables.
-- Canonical validation: clean-49, 49-fold subject-level LOSO, 38/10/1 train/validation/test.
-- Lesion extension: clean-42, one lesion ROI, 38 metrics, 42-fold LOSO (33/8/1).
-- Original research Python and shell filenames and contents are preserved. Some scripts
-  retain original server paths; inspect/configure those paths before use. The direct
-  Python commands below avoid the hard-coded `cd` in historical shell wrappers.
-- Patient images, metric tables, participant manifests, predictions and training logs
-  are **not distributed**. This is a code release, not a complete executable data bundle.
-- Read [processing provenance and unresolved items](docs/PROCESSING_PROVENANCE.md).
-  Full raw-dMRI preprocessing execution and the generators of the two internal QC reports
-  have not been recovered. Do not describe this release as a complete reconstruction of every historical step.
+Use Python 3.9–3.12 in a new environment (tested versions/results in `docs/VALIDATION.md`).
+Dependencies are declared once, in `pyproject.toml`. CPU is sufficient for this example.
 
-## Layout
+```bash
+python -m venv .venv
+# Linux/macOS: source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install .
+python -m teprediction synthetic --output example
+python -m teprediction prepare --config example/config.json
+python -m teprediction train --model dlinear --config example/config.json --manifest example/cohort.csv --expected-subjects 8 --output-dir outputs/example --device cpu --max-epochs 1 --patience 1
+python -m teprediction evaluate --input-dir outputs/example --output-dir outputs/example_summary --models dlinear --groups example/groups.csv
+```
 
-| Path | Purpose |
+This generates 8 fictitious subjects × 7 TEs × 2 metrics × 2 ROIs, trains all eight LOSO
+folds, and saves predictions and ROI/group summaries. One epoch verifies execution, not accuracy.
+DLinear, iTransformer and TimesNet run without fetching complete external repositories.
+`python -m teprediction --help` lists every command; append `--help` to a command for arguments.
+To repeat the release checks: `python tests/smoke.py` after installation.
+
+## Input contract and formal experiment
+
+The CSV requires exactly these measurement fields (additional columns are allowed):
+
+| Column | Meaning |
 |---|---|
-| `code/clean_code/01_train_table1_clean49.py` | Canonical four-model training entry point |
-| `code/03_train_neural.py`, `code/73_train_extra_models.py` | Model/training wrappers |
-| `code/01_audit_prepare.py` | Input audit and matrix construction |
-| `code/07_prepare_lesion_csv.py` | Aggregate existing per-subject resampled lesion means |
-| `code/clean_code/06_prepare_lesion_clean42.py` | Prepare complete clean-42 lesion cohort |
-| `code/clean_code/` | Main results, figures and sensitivity/extension analyses |
-| `preprocessing/BN_JHU/` | FA-based atlas registration, label splitting and extraction |
-| `preprocessing/dipy/` | Metric fitting, QC cleaning and candidate lesion extraction scripts |
-| `scripts/` | Original orchestration and extension scripts |
-| `external_repos/` | Three third-party source snapshots with their original licenses |
-| `docs/run_settings/` | Public settings with participant identities/signatures removed |
-| `MAIN_EXPERIMENT_HASH_CHECK.csv` | Historical core model/wrapper hash verification |
+| `Subject` | De-identified string, consistent across all files |
+| `TE` | Integer milliseconds, normally 75,85,95,105,115,125,135 |
+| `Model`, `Metric` | Fitting family and parameter name |
+| `ROI_ID`, `ROI_Name` | Consistent ROI identity and label |
+| `Mean`, `Std` | Already computed ROI statistics; Std may be empty |
 
-## Environments
+Duplicate subject/TE/model/metric/ROI keys are rejected. Preparation retains complete-TE
+subjects and excludes a metric family/parameter across all ROIs if its mean is missing anywhere
+in that complete cohort, matching the original audit rule. Supply the same input scope and
+cohort/feature decisions for exact study comparison. `data/cohort.csv` must contain a unique
+`subject` column with the 49 approved pseudonyms. **No original patient list is distributed.**
 
-Training uses `mte`; MRI fitting uses `dipy`. Current server exports are supplied as
-`environment_mte_server.yml` and `environment_dipy_server.yml` with machine-specific
-conda `prefix` fields removed. They are environment records, not cross-platform lockfiles.
-The older `environment.yml`, `mte_environment.yml` and `mte_requirements.txt` are retained
-as historical records; old exports can include machine-specific package locations.
-
-Current recorded versions: mte Python 3.10.20 / PyTorch 1.11.0+cu115; dipy Python 3.9.25 /
-DIPY 1.10.0 / nibabel 5.3.3 / AMICO 2.1.1. See `mri_software_versions.txt` for FLIRT,
-ANTs and MRtrix3. Current exports do not establish every historical fitting version.
-Linux, a compatible CUDA installation and separately installed MRI tools are expected.
+Edit `config.json` to locate your CSV, matrices and outputs. All relative paths are relative
+to the working directory, including paths inside a config; run consistently from your project
+root. The configuration is portable and contains no original server paths.
 
 ```bash
-conda env create -f environment_mte_server.yml
-conda activate mte
+python -m teprediction prepare --config config.json
+python -m teprediction train --model itransformer --config config.json --manifest data/cohort.csv
+# Repeat train for timesnet, mole and dlinear after supplying the MoLE dependency.
+python -m teprediction summarize --input-dir outputs/table1_clean49
+python -m teprediction evaluate --groups data/groups.csv
 ```
 
-The original MoLE source is not redistributed because no explicit license was found
-in the provided snapshot or upstream root. Obtain it from [RogerNi/MoLE](https://github.com/RogerNi/MoLE)
-under applicable terms and place it at `external_repos/MoLE`. Its exact historical upstream
-commit is unknown. Compare `models/MoLE_DLinear.py` against the recorded SHA256 in
-`MAIN_EXPERIMENT_HASH_CHECK.csv`; a current checkout is not guaranteed to match.
-Your project MoLE wrapper is included. See [third-party notices](THIRD_PARTY_NOTICES.md).
-`scripts/04_setup_extra_repos.sh` is a historical optional-model helper, not the installation
-entry point for these four canonical models.
+Canonical settings: 49 subjects; 38 metrics × 296 BN/JHU ROIs = 11,248 variables; five input
+TEs (75–115 ms) predicting 125/135 ms; subject-level LOSO with 38/10/1 train/validation/test;
+seed 20260623, batch 1, AdamW lr 7e-4, weight decay 1e-4, up to 100 epochs, patience 12.
+Standardization uses the current training subjects across their seven TEs, not validation/test
+subjects. The same trained predictions supply overall and target-specific summaries.
+The initial historical audit contained 51 complete-TE subjects before the clean-49 selection.
+Do not replace the cohort selection with the assumption that every complete subject is eligible.
 
-## Prepare data and run the main experiment
+## Third-party dependencies and MoLE
 
-Supply an authorized, de-identified ROI table at `data/raw/BN_JHU_metric_results_raw.csv`.
-The audited table requires `Subject`, `TE`, `Model`, `Metric`, `ROI_ID`, `ROI_Name`,
-`Mean` and `Std`. Refer to the reader in `code/01_audit_prepare.py`
-and the provided ROI mapping; TE values must correspond to the seven configured TEs.
-Use consistent pseudonyms across input tables and cohort manifests.
+Only the transitive model-source dependencies (9 Python files) of the three licensed snapshots
+are bundled; see `THIRD_PARTY_NOTICES.md`. Their source contents are unchanged. MoLE's training
+adapter is included, but its upstream source has no located explicit license and is not redistributed.
+Obtain the appropriate official [RogerNi/MoLE](https://github.com/RogerNi/MoLE) snapshot under its
+applicable terms in `model_sources/MoLE`, and set `external_repos_dir` in your config to
+`model_sources`. Bundled models remain available as fallback. The adapter loads exactly
+`models/MoLE_DLinear.py`, not a heuristically chosen alternative. Its verified study SHA256 is:
 
-```bash
-python code/01_audit_prepare.py --config config.json
+```text
+7179a807348870723434723cac2292e4401f96354190c46c6b24ae5933df1f74
 ```
 
-Supply `data/processed/clean49_subjects.csv` with a `subject` column containing exactly
-49 authorized de-identified participants selected according to the study cohort rules.
-The audit can initially contain 51 complete-TE participants: the canonical trainer applies
-the clean-49 manifest. `00_build_clean49_manifest.py` needs a historical result table that
-is not public, so it is not a from-scratch cohort discovery tool.
+The exact historical MoLE upstream commit remains unknown. Validate local dependencies before
+reproducing results; a current upstream checkout need not match. The public tested environment
+uses PyTorch 2.5.1, whereas the recorded original GPU training used PyTorch 1.11.0+cu115.
+A smoke pass does not establish bitwise reproduction of the historical GPU results.
 
-From the repository root, after supplying data, the manifest and all four model dependencies:
+## Paper extension analyses
 
-```bash
-for model in itransformer timesnet mole dlinear; do
-  python code/clean_code/01_train_table1_clean49.py \
-    --model "$model" --config config.json \
-    --manifest data/processed/clean49_subjects.csv \
-    --device cuda --batch-size 1 --max-epochs 100 --patience 12
-done
-python code/clean_code/02_summarize_table1_s1.py
-```
+| Analysis | Commands / required input |
+|---|---|
+| Lesion clean-42 | Use a separate config pointing to a **precomputed** lesion ROI table with the same schema, one `L_1` ROI and the canonical 38 metrics. Supply its 42-person manifest; `prepare`, then `train --expected-subjects 42 --output-dir outputs/lesion`; the canonical split is 33/8/1. Use `summarize --input-dir outputs/lesion --expected-subjects 42 --expected-variables 38`. No lesion resampling is performed here. |
+| ROI and disease groups | `evaluate`, optionally `--groups data/groups.csv` (`subject,group`); emits held-out ROI means, group statistics and paired Wilcoxon/BH-FDR. Templates/atlas brain rendering are not bundled. |
+| Linear extrapolation reference | `linear-reference` using canonical fold manifest and the prepared matrix |
+| Leave-one-TE-out | `leave-one-te --model itransformer --mode loso` (also TimesNet/DLinear); `leave-one-te-mole --model mole --mode loso` for MoLE. Input must already reflect the approved complete cohort. |
+| Input-TE counts / pairs | `input-te-count`, `te-pairs`; each requires canonical cohort selection and the prepared matrix |
+| External ScienceDB | `interpolate` for the external ROI table's TE grid if needed; `external --model ...` uses internal canonical cohort and a separate external table. No image fitting or external labels are downloaded. |
+| Incomplete-TE pretraining | `prepare-incomplete`, then `pretrain-itransformer --mode loso`, `pretrain-baselines --mode loso` or `pretrain-mole --mode loso`; `matched-pretraining --max-folds 0` implements the full matched control. Supply the authorized incomplete/complete cohort and use the CLI's explicit exclusion option if required. |
+| Native-unit / metric summaries | `native-units`, `metric-errors`, using saved predictions |
+| WMTI-GM exclusion | `wmti-sensitivity`, `summarize-wmti`; strict original 49-person/11,248-variable checks retained |
+| Moving-average kernel sensitivity | `kernel-sensitivity`, `summarize-kernel`; reuses canonical k=25 and tests k=3/5 |
 
-For lesions, `07_prepare_lesion_csv.py` expects existing
-`<subject>/rs/lesion_metrics_mean.csv` files; it does not resample MRI itself. See the
-processing document before running `scripts/08_prepare_lesion_csv.sh` and the clean-42
-preparation/training scripts. Atlas files and lesion masks must be obtained separately.
+Numerical analysis is retained; old publication-layout renderers, manuscript directories and
+historical models are removed. See [release audit](docs/RELEASE_AUDIT.md) and
+[rename mapping](docs/RENAMING.csv). Module helpers are intentionally kept separate where
+merging would obscure distinct training/validation procedures.
 
-## Verification and licensing
+## Provenance and privacy
 
-`RELEASE_FILE_MANIFEST.csv` records shipped file hashes and whether each copy is byte-identical
-to the local release source. `docs/RELEASE_VALIDATION.md` states the checks performed.
-No training or MRI preprocessing was rerun for this release.
+On 2026-10-08 the author confirmed that all 49 formal participants' BN/JHU atlases were generated
+using FWDTI FA registration. **This is author confirmation, not a new registration run or independent
+per-subject imaging audit.** No original results were overwritten. Earlier evidence supports
+resample-then-mean lesion extraction. The upstream raw-dMRI execution record and the generators of
+`QC_Flagged_Report.csv` / `QC_Final_Report.csv` remain unresolved and outside this package's input boundary.
+Earlier wording describing FSL thresholding as replacement by numerical bounds was incorrect:
+`-thr/-uthr` sets out-of-range voxels to zero. This release begins after that stage.
 
-Third-party code retains its own licenses. A license for the original project code has
-not yet been selected by the maintainer; public availability alone does not grant an
-additional reuse license. See `THIRD_PARTY_NOTICES.md`.
+Do not commit patient data, cohort/group tables, predictions or credentials. Generated output is
+ignored by default, but Git ignore rules do not anonymize data. Example generation uses no patient
+records. Original project code is MIT-licensed; third-party exceptions are listed in `THIRD_PARTY_NOTICES.md`.
 
 ## 中文说明
 
-本次公开的是正式四模型及相关处理/分析代码，原脚本名称与内容未改。
-BN/JHU正式方案有文档和代码支持为FWDTI FA配准，但所有最终图谱的逐例来源仍无法确认；
-clean-42病灶分析支持重采样后统计。上游预处理完整执行记录、两份内部QC报告的生成程序仍缺失。
-不包含患者影像、患者姓名/编号、训练名单或内部日志。MoLE第三方源码需从官方来源另行取得；
-其训练封装和已核验哈希保留。详细证据边界见[流程说明](docs/PROCESSING_PROVENANCE.md)。
+公开入口已经收敛为“拟合、空间处理和ROI统计已完成的多TE指标CSV”。源代码按实际功能命名，
+数字编号、服务器路径、历史模型和整仓第三方副本已清理；示例完全生成。49人FA路径由作者于
+2026-10-08确认，本轮未重跑影像配准。论文原始数值复现仍需获授权的数据、相同队列/指标规则
+及对应依赖版本，不能用小型CPU smoke test替代正式实验复现。

@@ -1,15 +1,31 @@
 {
-  "raw_csv": "data/raw/BN_JHU_metric_results_raw.csv",
-  "roi_mapping_csv": "data/raw/BN_JHU_roi_mapping.csv",
-  "matrix_file": "data/processed/01_model_matrix_complete7te.npz",
-  "split_file": "data/processed/01_subject_splits.csv",
-  "metadata_file": "data/processed/01_variable_metadata.csv",
+  "raw_csv": "data/roi_metrics.csv",
+  "matrix_file": "data/processed/model_matrix_complete7te.npz",
+  "split_file": "data/processed/subject_splits.csv",
+  "metadata_file": "data/processed/variable_metadata.csv",
   "output_dir": "outputs",
-  "external_repos_dir": "external_repos",
+  "external_repos_dir": "",
   "random_seed": 20260623,
-  "expected_te": [75, 85, 95, 105, 115, 125, 135],
-  "fixed_input_te": [75, 85, 95, 105, 115],
-  "fixed_target_te": [125, 135],
-  "train_ratio": 0.70,
+  "expected_te": [
+    75,
+    85,
+    95,
+    105,
+    115,
+    125,
+    135
+  ],
+  "fixed_input_te": [
+    75,
+    85,
+    95,
+    105,
+    115
+  ],
+  "fixed_target_te": [
+    125,
+    135
+  ],
+  "train_ratio": 0.7,
   "val_ratio": 0.15
 }
