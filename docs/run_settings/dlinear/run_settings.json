@@ -1,0 +1,24 @@
+{
+  "model": "dlinear",
+  "random_seed": 20260623,
+  "input_te": [
+    75,
+    85,
+    95,
+    105,
+    115
+  ],
+  "target_te": [
+    125,
+    135
+  ],
+  "batch_size": 1,
+  "max_epochs": 100,
+  "patience": 12,
+  "matrix_file": "data/processed/01_model_matrix_complete7te.npz",
+  "n_variables": 11248,
+  "wrapper_sha256": "44a60a80b86273d69c8059f22fc7b13db34236cf024a441a9375b429a11020ec",
+  "official_model_sha256": "190859fc67db235cdd9c27c7590776f402b59e7b67804b52ee2757715f7fc9e3",
+  "cohort_size": 49,
+  "release_note": "Participant identifiers and original subject-dependent run signature omitted. This is a public reference, not a resumable original run-settings file."
+}

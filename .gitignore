@@ -216,3 +216,20 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Study data and generated outputs must not be published by default
+/data/raw/*
+!/data/raw/BN_JHU_roi_mapping.csv
+!/data/raw/lesion_roi_mapping.csv
+/data/processed*/
+/outputs*/
+/logs/
+*.nii
+*.nii.gz
+*.dcm
+*.npz
+*.npy
+*.pt
+*.pth
+/checkpoints/
+/external_repos/MoLE/
