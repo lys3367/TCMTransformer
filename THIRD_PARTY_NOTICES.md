@@ -29,3 +29,7 @@ Original project code is released under the MIT License (root LICENSE), as selec
 | `teprediction/vendor/iTransformer/layers/Transformer_EncDec.py` | `eed892a31468b1142777420f4b7ecb8cdbae020d835bbdd59a045c99bbe986df` |
 | `teprediction/vendor/iTransformer/model/iTransformer.py` | `b89cebca695824ba1c074923527614f7fa5326d8dae884a3efa8f87aa9431be7` |
 | `teprediction/vendor/iTransformer/utils/masking.py` | `c22de70ad076f4eeecc857aba984741da05da54375333399ff2742b041544986` |
+
+## Separately fetched MoLE
+
+`install-mole` pins official commit `a4f9fa8a6640598e953464f39f021a641cd9146c` and checks both runtime files after newline normalization. This pin establishes source availability and content equivalence, not the historical experiment commit or a grant of license. No MoLE source is included in this package.

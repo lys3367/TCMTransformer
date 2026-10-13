@@ -3,6 +3,8 @@ import importlib
 import sys
 
 COMMANDS = {
+    "population-template": "population_template", "install-mole": "dependencies",
+    "paired-statistics": "statistics",
     "prepare": "prepare", "train": "train", "summarize": "summarize",
     "synthetic": "synthetic", "evaluate": "evaluate",
     "linear-reference": "linear_reference", "leave-one-te": "leave_one_te",

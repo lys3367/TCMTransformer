@@ -1,14 +1,12 @@
-# ROI-level multi-TE prediction
+# TCMTransformer: ROI-level multi-TE prediction
 
-This repository starts from **already fitted and aggregated ROI-level multi-TE metric tables**.
-It reproduces TE prediction and the study's numerical extension analyses; it is not a raw-dMRI
-preprocessing, fitting or atlas-registration pipeline. The repository name TCMTransformer does
-not imply a new model architecture. The four study models are iTransformer, TimesNet, MoLE and DLinear.
+Code accompanying **Predicting Diffusion MRI Microstructural Metrics at Target Echo Times with a Variable-Centric Transformer**, submitted to *Biomedical Signal Processing and Control* (BSPC).
 
-## Install and run an entirely synthetic example
+TCMTransformer is the study framework built on iTransformer. The code identifier `itransformer` corresponds to the paper label **TCMTransformer**; the other three formal models are TimesNet, MoLE and DLinear. This release starts from **already fitted, spatially processed and aggregated ROI-level multi-TE metric tables**. It implements prediction and numerical extension analyses. Raw MRI preprocessing, registration, fitting, patient data and publication-layout rendering are outside its scope.
 
-Use Python 3.9–3.12 in a new environment (tested versions/results in `docs/VALIDATION.md`).
-Dependencies are declared once, in `pyproject.toml`. CPU is sufficient for this example.
+## Installation and synthetic quick start
+
+Python 3.9–3.12 is supported by the declared dependencies. The release test uses a fresh Python 3.9.23 environment with PyTorch 2.5.1 on Windows CPU. The historical experiments used Python 3.10.20 and PyTorch 1.11.0+cu115; the public environment is an execution baseline, not a guarantee of identical GPU floating-point results.
 
 ```bash
 python -m venv .venv
@@ -21,11 +19,7 @@ python -m teprediction train --model dlinear --config example/config.json --mani
 python -m teprediction evaluate --input-dir outputs/example --output-dir outputs/example_summary --models dlinear --groups example/groups.csv
 ```
 
-This generates 8 fictitious subjects × 7 TEs × 2 metrics × 2 ROIs, trains all eight LOSO
-folds, and saves predictions and ROI/group summaries. One epoch verifies execution, not accuracy.
-DLinear, iTransformer and TimesNet run without fetching complete external repositories.
-`python -m teprediction --help` lists every command; append `--help` to a command for arguments.
-To repeat the release checks: `python tests/smoke.py` after installation.
+The example generator creates eight fictitious subjects, seven TEs and four variables. It includes a portable config and cohort/group tables. The command trains eight LOSO folds and writes predictions. The same command accepts `itransformer` and `timesnet`; MoLE needs the separate dependency below. A one-epoch synthetic test verifies execution, **not reproduction of paper accuracy**.
 
 ## Input contract and formal experiment
 
@@ -62,34 +56,31 @@ TEs (75–115 ms) predicting 125/135 ms; subject-level LOSO with 38/10/1 train/v
 seed 20260623, batch 1, AdamW lr 7e-4, weight decay 1e-4, up to 100 epochs, patience 12.
 Standardization uses the current training subjects across their seven TEs, not validation/test
 subjects. The same trained predictions supply overall and target-specific summaries.
-The initial historical audit contained 51 complete-TE subjects before the clean-49 selection.
-Do not replace the cohort selection with the assumption that every complete subject is eligible.
+Cohort inclusion must follow the approved study manifest; completeness alone does not establish eligibility.
 
-## Third-party dependencies and MoLE
+## Model sources and MoLE setup
 
-Only the transitive model-source dependencies (9 Python files) of the three licensed snapshots
-are bundled; see `THIRD_PARTY_NOTICES.md`. Their source contents are unchanged. MoLE's training
-adapter is included, but its upstream source has no located explicit license and is not redistributed.
-Obtain the appropriate official [RogerNi/MoLE](https://github.com/RogerNi/MoLE) snapshot under its
-applicable terms in `model_sources/MoLE`, and set `external_repos_dir` in your config to
-`model_sources`. Bundled models remain available as fallback. The adapter loads exactly
-`models/MoLE_DLinear.py`, not a heuristically chosen alternative. Its verified study SHA256 is:
+Nine unchanged Python source files provide the runtime import dependencies of iTransformer (MIT), TimesNet (MIT) and DLinear (Apache-2.0); their original licenses are bundled. See [third-party notices](THIRD_PARTY_NOTICES.md). Complete third-party repositories are unnecessary.
 
-```text
-7179a807348870723434723cac2292e4401f96354190c46c6b24ae5933df1f74
+MoLE is the official **MoLE_DLinear** implementation from [RogerNi/MoLE](https://github.com/RogerNi/MoLE), *Mixture-of-Linear-Experts for Long-term Time Series Forecasting* (AISTATS 2024). Its two runtime files are **not redistributed** here: no explicit upstream license was located. Obtain/use them under applicable permission; public availability is not a redistribution license.
+
+For a separately obtained local dependency, the following command downloads only those two files, verifies normalized SHA256 values, and refuses to overwrite different files:
+
+```bash
+python -m teprediction install-mole --destination model_sources/MoLE
 ```
 
-The exact historical MoLE upstream commit remains unknown. Validate local dependencies before
-reproducing results; a current upstream checkout need not match. The public tested environment
-uses PyTorch 2.5.1, whereas the recorded original GPU training used PyTorch 1.11.0+cu115.
-A smoke pass does not establish bitwise reproduction of the historical GPU results.
+Set `external_repos_dir` to `model_sources` in your chosen config. The downloader pins commit `a4f9fa8a6640598e953464f39f021a641cd9146c`. Its model file matches the research copy after CRLF/LF normalization (SHA256 `fe5dad01208b0f775923cde1beb5edd1fd80032fd6fb06a0b316300fb6f93c90`). This is a verified reproducible source pin, **not a recovered historical checkout commit**. MoLE uses two candidate predictions (`t_dim=2` for the primary task); unused legacy config attributes do not define its architecture.
+
+Total parameter counts at 11,248 variables are 2,386 (iTransformer), 742,746 (TimesNet), 506,205,040 (MoLE), and 24 (DLinear). TimesNet has 741,530 trainable parameters plus 1,216 fixed embedding parameters; the submitted manuscript labels the total as trainable. The other three totals are also their trainable counts. The full MoLE model is large; the synthetic smoke uses four variables and is not a full-dimension training benchmark.
 
 ## Paper extension analyses
 
 | Analysis | Commands / required input |
 |---|---|
 | Lesion clean-42 | Use a separate config pointing to a **precomputed** lesion ROI table with the same schema, one `L_1` ROI and the canonical 38 metrics. Supply its 42-person manifest; `prepare`, then `train --expected-subjects 42 --output-dir outputs/lesion`; the canonical split is 33/8/1. Use `summarize --input-dir outputs/lesion --expected-subjects 42 --expected-variables 38`. No lesion resampling is performed here. |
-| ROI and disease groups | `evaluate`, optionally `--groups data/groups.csv` (`subject,group`); emits held-out ROI means, group statistics and paired Wilcoxon/BH-FDR. Templates/atlas brain rendering are not bundled. |
+| ROI and disease groups | `evaluate`, optionally `--groups data/groups.csv` (`subject,group`); emits held-out ROI means, group statistics and paired Wilcoxon/BH-FDR across all supplied group/comparator pairs, with 10,000 participant bootstrap resamples. Templates/atlas brain rendering are not bundled. |
+| Population-template controls | `population-template --config config.json --table1-dir outputs/table1_clean49`; uses saved fold scaling and predictions, compares train38/dev48 templates with paired tests and bootstrap intervals |
 | Linear extrapolation reference | `linear-reference` using canonical fold manifest and the prepared matrix |
 | Leave-one-TE-out | `leave-one-te --model itransformer --mode loso` (also TimesNet/DLinear); `leave-one-te-mole --model mole --mode loso` for MoLE. Input must already reflect the approved complete cohort. |
 | Input-TE counts / pairs | `input-te-count`, `te-pairs`; each requires canonical cohort selection and the prepared matrix |
@@ -99,28 +90,32 @@ A smoke pass does not establish bitwise reproduction of the historical GPU resul
 | WMTI-GM exclusion | `wmti-sensitivity`, `summarize-wmti`; strict original 49-person/11,248-variable checks retained |
 | Moving-average kernel sensitivity | `kernel-sensitivity`, `summarize-kernel`; reuses canonical k=25 and tests k=3/5 |
 
-Numerical analysis is retained; old publication-layout renderers, manuscript directories and
-historical models are removed. See [release audit](docs/RELEASE_AUDIT.md) and
-[rename mapping](docs/RENAMING.csv). Module helpers are intentionally kept separate where
-merging would obscure distinct training/validation procedures.
+For extension-level paired comparisons, `paired-statistics --input measurements.csv` accepts `subject,model,MAE` (lowercase model identifiers). With `--loto`, also provide `target_te`: exactly seven canonical targets are required and averaged within participant before Wilcoxon/BH-FDR across the three reference comparisons. Historical tables must be converted explicitly to this schema; there is no silent discovery of older results.
 
-## Provenance and privacy
+All commands expose `--help`. Extension training has its own options; use the manuscript's authorized cohort and the documented experiment settings. The primary CLI's default batch size is 1. The historical base-model LOTO run used `--batch-size 1` for iTransformer and `--batch-size 8` for TimesNet/DLinear, with training seed `20260623 + 100*fold + target_te`. Set these explicitly; the paper's primary-task batch/seed description must not be generalized to LOTO. The exact historical MoLE LOTO batch override remains unverified (its CLI default is 16). LOTO table SD describes 343 fold-target measurements; paired tests average the seven targets first, yielding 49 independent participant pairs. These are distinct aggregation levels.
 
-On 2026-10-08 the author confirmed that all 49 formal participants' BN/JHU atlases were generated
-using FWDTI FA registration. **This is author confirmation, not a new registration run or independent
-per-subject imaging audit.** No original results were overwritten. Earlier evidence supports
-resample-then-mean lesion extraction. The upstream raw-dMRI execution record and the generators of
-`QC_Flagged_Report.csv` / `QC_Final_Report.csv` remain unresolved and outside this package's input boundary.
-Earlier wording describing FSL thresholding as replacement by numerical bounds was incorrect:
-`-thr/-uthr` sets out-of-range voxels to zero. This release begins after that stage.
+## Reproduction checks
 
-Do not commit patient data, cohort/group tables, predictions or credentials. Generated output is
-ignored by default, but Git ignore rules do not anonymize data. Example generation uses no patient
-records. Original project code is MIT-licensed; third-party exceptions are listed in `THIRD_PARTY_NOTICES.md`.
+After installation and separate MoLE setup:
 
-## 中文说明
+```bash
+python tests/smoke.py --mole-dir model_sources/MoLE --report outputs/smoke_report.json
+```
 
-公开入口已经收敛为“拟合、空间处理和ROI统计已完成的多TE指标CSV”。源代码按实际功能命名，
-数字编号、服务器路径、历史模型和整仓第三方副本已清理；示例完全生成。49人FA路径由作者于
-2026-10-08确认，本轮未重跑影像配准。论文原始数值复现仍需获授权的数据、相同队列/指标规则
-及对应依赖版本，不能用小型CPU smoke test替代正式实验复现。
+The test runs from an unrelated temporary directory, checks imports and command help, validates 49/42-person split sizes and train-only scaling, rejects duplicate measurements, and runs all four models on eight synthetic LOSO folds each. It checks finite predictions and ROI/group summaries. Real-data results require authorized data and matched ordering, cohort, preprocessing and historical settings; they are not established by this test. Full extension retraining is not part of the minimal smoke test.
+
+## Privacy and scope
+
+Use de-identified IDs throughout. Do not commit patient tables, groups, images, checkpoints, logs or predictions. Generated paths and local model sources are ignored; ignore rules do not anonymize content. Load NPZ artifacts only from trusted sources (the historical matrix schema includes object arrays).
+
+The author confirmed that all 49 formal participants used the FWDTI FA atlas-registration path. No new image registration or independent per-subject imaging audit is claimed here. The generators of the upstream QC reports remain unconfirmed and are outside this package's input boundary. No MRI data or internal research documents are included.
+
+## License and citation
+
+Original project code is under the [MIT License](LICENSE). Third-party files retain their own licenses; the project MIT license does not cover externally fetched MoLE.
+
+Until a published DOI is available, cite the submitted manuscript without implying acceptance:
+
+> Li, Y., Zhang, C., Cao, S., Li, J., Lei, Z., Liu, X., and Wu, Y. Predicting Diffusion MRI Microstructural Metrics at Target Echo Times with a Variable-Centric Transformer. Manuscript submitted to Biomedical Signal Processing and Control, 2026.
+
+Also cite the upstream model papers when using their implementations. Repository: https://github.com/lys3367/TCMTransformer.

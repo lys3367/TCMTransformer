@@ -13,7 +13,12 @@ def main():
     parser.add_argument("--output-dir", default="outputs/roi_analysis")
     parser.add_argument("--models", nargs="+", default=["itransformer", "timesnet", "mole", "dlinear"])
     parser.add_argument("--groups", help="Optional CSV with unique subject,group columns; use pseudonyms.")
+    parser.add_argument("--bootstrap", type=int, default=10000)
+    parser.add_argument("--seed", type=int, default=20260825)
+    parser.add_argument("--group-order", nargs="+", default=["Healthy controls", "Glioma", "Other intracranial lesions", "Non-neoplastic neurological diseases"])
     args = parser.parse_args()
+    if args.bootstrap < 1:
+        parser.error("bootstrap must be positive")
     out = Path(args.output_dir)
     out.mkdir(parents=True, exist_ok=True)
     rows, reference = [], None
@@ -43,7 +48,11 @@ def main():
             raise ValueError("Group missing for a held-out subject")
         by_subject.groupby(["model", "group"]).MAE.agg(["mean", "std", "count"]).reset_index().to_csv(out/"group_summary.csv", index=False)
         comparisons = []
-        for group, frame in by_subject.groupby("group"):
+        rng = np.random.default_rng(args.seed)
+        present = set(by_subject.group)
+        order = [g for g in args.group_order if g in present] + sorted(present-set(args.group_order))
+        for group in order:
+            frame = by_subject[by_subject.group == group]
             pivot = frame.pivot(index="subject", columns="model", values="MAE")
             if "itransformer" not in pivot:
                 continue
@@ -52,7 +61,10 @@ def main():
                     continue
                 delta = pivot[model]-pivot.itransformer
                 p = 1.0 if np.all(delta == 0) else float(wilcoxon(delta).pvalue)
-                comparisons.append(dict(group=group, model=model, n=len(delta), mean_difference=float(delta.mean()), p=p))
+                values = delta.to_numpy()
+                samples = rng.integers(0, len(values), size=(args.bootstrap, len(values)))
+                lo, hi = np.percentile(values[samples].mean(axis=1), [2.5, 97.5])
+                comparisons.append(dict(group=group, model=model, n=len(delta), mean_difference=float(delta.mean()), bootstrap_CI_lower=lo, bootstrap_CI_upper=hi, p=p))
         if comparisons:
             stats = pd.DataFrame(comparisons)
             stats["q"] = bh_fdr(stats.p.tolist())

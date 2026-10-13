@@ -51,7 +51,7 @@ class MarkForecastWrapper(nn.Module):
 
 
 def clear_extra_imports(repo_paths: list[Path]) -> None:
-    prefixes = ("models", "model", "layers")
+    prefixes = ("models", "model", "layers", "utils")
     for name in list(sys.modules):
         if name in prefixes or name.startswith(tuple(prefix + "." for prefix in prefixes)):
             del sys.modules[name]

@@ -13,7 +13,7 @@ os.environ["MKL_NUM_THREADS"] = "1"
 os.environ.pop("PYTHONPATH", None)
 
 
-def run_smoke():
+def run_smoke(mole_dir):
     import numpy as np
     import pandas as pd
     import torch
@@ -55,6 +55,10 @@ def run_smoke():
                 importlib.import_module("teprediction."+module)
                 command(name, "--help")
             command("synthetic", "--output", "example")
+            cfg_path = Path("example/config.json")
+            cfg = json.loads(cfg_path.read_text())
+            cfg["external_repos_dir"] = str(mole_dir.parent)
+            cfg_path.write_text(json.dumps(cfg))
             command("prepare", "--config", "example/config.json")
             with np.load("example/processed/model_matrix_complete7te.npz", allow_pickle=True) as matrix:
                 assert matrix["x_raw"].shape == (8, 7, 4)
@@ -71,7 +75,7 @@ def run_smoke():
                 assert "duplicate" in str(exc).lower()
             else:
                 raise AssertionError("Duplicate measurements were accepted")
-            for model in ["dlinear", "itransformer", "timesnet"]:
+            for model in ["dlinear", "itransformer", "timesnet", "mole"]:
                 command("train", "--model", model, "--config", "example/config.json",
                         "--manifest", "example/cohort.csv", "--expected-subjects", "8",
                         "--output-dir", "outputs/smoke", "--device", "cpu",
@@ -82,10 +86,10 @@ def run_smoke():
                     assert len(set(z["subjects"].tolist())) == 8
                     results[model] = {"folds": 8, "prediction_shape": list(z["pred_z"].shape),
                                       "MAE": float(np.abs(z["true_z"]-z["pred_z"]).mean())}
-            command("summarize", "--input-dir", "outputs/smoke", "--models", "dlinear", "itransformer", "timesnet",
+            command("summarize", "--input-dir", "outputs/smoke", "--models", "dlinear", "itransformer", "timesnet", "mole",
                     "--expected-subjects", "8", "--expected-variables", "4")
             command("evaluate", "--input-dir", "outputs/smoke", "--output-dir", "outputs/evaluation",
-                    "--models", "dlinear", "itransformer", "timesnet", "--groups", "example/groups.csv")
+                    "--models", "dlinear", "itransformer", "timesnet", "mole", "--groups", "example/groups.csv")
             assert Path("outputs/evaluation/group_pairwise_fdr.csv").is_file()
         finally:
             os.chdir(previous)
@@ -93,14 +97,15 @@ def run_smoke():
             "numpy": np.__version__, "pandas": pd.__version__, "command_help_checks": len(COMMANDS),
             "folds_and_train_only_scaling": "passed", "duplicate_input_rejection": "passed",
             "data": "entirely synthetic", "models": results,
-            "limitations": "CPU one-epoch smoke, not paper-performance reproduction; MoLE source not distributed/tested here."}
+            "limitations": "CPU one-epoch smoke, not paper-performance reproduction; MoLE fetched separately; no real-data performance rerun."}
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--report", type=Path)
+    parser.add_argument("--mole-dir", type=Path, required=True, help="Verified external MoLE folder")
     args = parser.parse_args()
-    result = run_smoke()
+    result = run_smoke(args.mole_dir.resolve())
     text = json.dumps(result, indent=2)
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)
